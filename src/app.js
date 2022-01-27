@@ -2,6 +2,7 @@ import express, { json } from "express";
 import cors from "cors";
 import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
+import dayjs from "dayjs";
 
 dotenv.config();
 
@@ -24,7 +25,16 @@ app.post("/participants", async (req, res) => {
   }
 });
 
-app.post("/messages", (req, res) => {});
+app.post("/messages", (req, res) => {
+  const message = req.body;
+  const username = req.headers.user;
+  const time = dayjs().format("HH:mm:ss");
+
+  message.from = username;
+  message.time = time;
+
+  res.send(message);
+});
 app.post("/status", (req, res) => {});
 
 app.get("/participants", async (req, res) => {
