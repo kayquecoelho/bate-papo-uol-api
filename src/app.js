@@ -53,8 +53,8 @@ app.post("/participants", async (req, res) => {
       res.sendStatus(409);
       return;
     }
-
-    await db.collection("participants").insertOne({ name: req.body.name, lastStatus: Date.now() });
+    const timeOfRegistration = Date.now()
+    await db.collection("participants").insertOne({ name: req.body.name, lastStatus: timeOfRegistration });
 
     const message = {
       from: req.body.name,
