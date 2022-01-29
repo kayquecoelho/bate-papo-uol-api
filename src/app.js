@@ -76,7 +76,36 @@ app.post("/participants", async (req, res) => {
 });
 
 app.get("/messages", async (req, res) => {
+  const { limit } = req.query;
+  const { user } = req.headers;
 
+  if (!user) {
+    res.status(422).send("O username do requerinte deve ser informado!");
+    return;
+  }
+
+  try {
+    const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
+    const db = mongoClient.db("bate-papo-uol");
+    const messages = await db.collection("messages").find({}).toArray();
+
+    if (!limit) {
+      res.send(messages);
+    } else {
+      let filteredMessages = [...messages].reverse().slice(0, limit);
+      filteredMessages = filteredMessages.reverse();
+      const allowedMessages = filteredMessages.filter((m) => {
+        return user === m.to || user === m.from || m.to === "Todos";
+      })
+
+      res.send(allowedMessages);
+    }
+
+    mongoClient.close();
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
 });
 
 app.post("/messages", async (req, res) => {
@@ -110,8 +139,6 @@ app.post("/messages", async (req, res) => {
     console.log(err);
     res.sendStatus(500);
   }
-
-  res.sendStatus(201);
 });
 
 app.post("/status", (req, res) => {});
