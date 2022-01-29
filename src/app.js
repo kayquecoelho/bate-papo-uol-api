@@ -1,6 +1,6 @@
 import express, { json } from "express";
 import cors from "cors";
-import { MongoClient, ObjectId } from "mongodb";
+import { MongoClient, ObjectId, ReturnDocument } from "mongodb";
 import dotenv from "dotenv";
 import dayjs from "dayjs";
 import joi from "joi";
@@ -198,6 +198,42 @@ app.delete("/messages/:messageID", async (req, res) => {
   mongoClient.close();
 })
 
+app.put("/messages/:messageID", async (req, res) => {
+  const message = {...req.body, from: req.headers.user};
+  const { messageID } = req.params;
+  const validation = messageSchema.validate(message);
+
+  if (validation.error){
+    res.status(422).send(validation.error.details);
+    return;
+  }
+  try {
+    const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
+    const db = mongoClient.db("bate-papo-uol");
+    const isUserActive = await db.collection("participants").findOne({ name: req.headers.user });
+    const messageToUpdate = await db.collection("messages").findOne({ _id: new ObjectId(messageID) });
+
+    if (!isUserActive) {
+      res.sendStatus(422);
+      return;
+    }
+    if (!messageToUpdate){
+      res.sendStatus(404);
+      return;
+    }
+    if (messageToUpdate.from !== req.headers.user){
+      res.status(401);
+      return;
+    }
+    
+    await db.collection("messages").updateOne({ _id: new ObjectId(messageID) }, {
+      $set: { ...message, time: dayjs().format("HH:mm:ss") }
+    })
+    res.sendStatus(200);
+  } catch (err) {
+    res.sendStatus(500);
+  }
+})
 setInterval(async () => {
   const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
   const db = mongoClient.db("bate-papo-uol");
