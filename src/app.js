@@ -1,6 +1,6 @@
 import express, { json } from "express";
 import cors from "cors";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import dayjs from "dayjs";
 import joi from "joi";
@@ -22,6 +22,7 @@ const messageSchema = joi.object({
   type: joi.string().pattern(/^private_message|message$/).required()
 });
 
+const idSchema = joi.string().length(24);
 app.get("/participants", async (req, res) => {
   try {
     const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
@@ -161,6 +162,41 @@ app.post("/status", async  (req, res) => {
   }
   mongoClient.close();
 });
+
+app.delete("/messages/:messageID", async (req, res) => {
+  const { user } = req.headers;
+  const { messageID } = req.params;
+  const validation = idSchema.validate(messageID);
+  let mongoClient;
+
+  if (validation.error) {
+    res.status(422).send(validation.error.details);
+    return;
+  }
+  
+  try {
+    mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
+    const db = mongoClient.db("bate-papo-uol");
+    const messageToDelete = await db.collection("messages").findOne({ _id: new ObjectId(messageID) });
+
+    if (!messageToDelete){
+      res.sendStatus(404);
+      return;
+    }
+    if (messageToDelete.from !== user){
+      res.sendStatus(401);
+      return;
+    }
+
+    await db.collection("messages").deleteOne({ _id: new ObjectId(messageID)}); 
+
+    res.sendStatus(200);  
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+  mongoClient.close();
+})
 
 setInterval(async () => {
   const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
