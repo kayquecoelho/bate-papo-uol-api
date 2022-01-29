@@ -1,4 +1,4 @@
-import express, { json } from "express";
+import express, { json, text } from "express";
 import cors from "cors";
 import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
@@ -13,6 +13,13 @@ app.use(cors());
 
 const participantSchema = joi.object({
   name: joi.string().required(),
+});
+
+const messageSchema = joi.object({
+  from: joi.string().required(),
+  to: joi.string().required(),
+  text: joi.string().required(),
+  type: joi.string().pattern(/^private_message|message$/).required()
 });
 
 app.get("/participants", async (req, res) => {
@@ -40,12 +47,13 @@ app.post("/participants", async (req, res) => {
     const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
     const db = mongoClient.db("bate-papo-uol");
 
-    const nameInUse = await db.collection("participants").findOne({ name: req.body.name });
+    const isNameInUse = await db.collection("participants").findOne({ name: req.body.name });
 
-    if (nameInUse) {
+    if (isNameInUse) {
       res.sendStatus(409);
       return;
     }
+
     const timeOfRegistration = Date.now();
     await db.collection("participants").insertOne({ name: req.body.name, lastStatus: timeOfRegistration });
 
@@ -67,18 +75,45 @@ app.post("/participants", async (req, res) => {
   }
 });
 
-app.get("/messages", (req, res) => {});
+app.get("/messages", async (req, res) => {
 
-app.post("/messages", (req, res) => {
-  const message = req.body;
-  const username = req.headers.user;
+});
+
+app.post("/messages", async (req, res) => {
   const time = dayjs().format("HH:mm:ss");
+  const username = req.headers.user; 
+  const message = { ...req.body, from: username };
 
-  message.from = username;
-  message.time = time;
+  const validation = messageSchema.validate(message, { abortEarly: false });
+
+  if (validation.error) {
+    res.status(422).send(validation.error.details);
+    return; 
+  }
+
+  try {
+    const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
+
+    const db = mongoClient.db("bate-papo-uol");
+    const isSenderconnected = await db.collection("participants").findOne({ name: username});
+
+    if (!isSenderconnected){
+      res.sendStatus(422);
+      return;
+    }
+
+    await db.collection("messages").insertOne({ ...message, time });
+
+    res.sendStatus(201);
+    mongoClient.close();
+  } catch (err){
+    console.log(err);
+    res.sendStatus(500);
+  }
 
   res.sendStatus(201);
 });
+
 app.post("/status", (req, res) => {});
 
 
