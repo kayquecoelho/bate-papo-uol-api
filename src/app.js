@@ -1,4 +1,4 @@
-import express, { json, text } from "express";
+import express, { json } from "express";
 import cors from "cors";
 import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
@@ -162,5 +162,26 @@ app.post("/status", async  (req, res) => {
   mongoClient.close();
 });
 
+setInterval(async () => {
+  const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
+  const db = mongoClient.db("bate-papo-uol");
+
+  const users = await db.collection("participants").find().toArray();
+
+  const usersfiltered = users.filter((u) => Date.now() - u.lastStatus > 10000);
+
+  for (const user of usersfiltered){
+    await db.collection("participants").deleteOne({...user});
+    await db.collection("messages").insertOne({
+      from: user.name,
+      to: 'Todos', 
+      text: 'sai da sala...', 
+      type: 'status', 
+      time: dayjs().format("HH:mm:ss")
+    })
+  }
+  mongoClient.close();
+}, 15000)
 
 app.listen(5000, () => console.log("Server is listening on door 5000"));
+
