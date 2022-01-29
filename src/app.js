@@ -37,6 +37,7 @@ app.get("/participants", async (req, res) => {
 
 app.post("/participants", async (req, res) => {
   const validation = participantSchema.validate(req.body);
+  let mongoClient;
 
   if (validation.error) {
     res.status(422).send(validation.error.details.message);
@@ -44,9 +45,8 @@ app.post("/participants", async (req, res) => {
   }
 
   try {
-    const mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
+    mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
     const db = mongoClient.db("bate-papo-uol");
-
     const isNameInUse = await db.collection("participants").findOne({ name: req.body.name });
 
     if (isNameInUse) {
@@ -54,8 +54,7 @@ app.post("/participants", async (req, res) => {
       return;
     }
 
-    const timeOfRegistration = Date.now();
-    await db.collection("participants").insertOne({ name: req.body.name, lastStatus: timeOfRegistration });
+    await db.collection("participants").insertOne({ name: req.body.name, lastStatus: Date.now() });
 
     const message = {
       from: req.body.name,
@@ -68,11 +67,11 @@ app.post("/participants", async (req, res) => {
     await db.collection("messages").insertOne(message);
 
     res.sendStatus(201);
-    mongoClient.close();
   } catch (err) {
     console.log(err);
     res.sendStatus(500);
   }
+  mongoClient.close();
 });
 
 app.get("/messages", async (req, res) => {
@@ -141,7 +140,27 @@ app.post("/messages", async (req, res) => {
   }
 });
 
-app.post("/status", (req, res) => {});
+app.post("/status", async  (req, res) => {
+  const { user } = req.headers;
+  let mongoClient;
+  try {
+    mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
+    const db = mongoClient.db("bate-papo-uol");
+    const isUserIntoDatabase = await db.collection("participants").findOne({ name: user });
+
+    if (!isUserIntoDatabase) {
+      res.sendStatus(404);
+      return;
+    }
+    
+    await db.collection("participants").updateOne({ name: user }, { $set: { lastStatus: Date.now() }});
+    res.sendStatus(200);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+  mongoClient.close();
+});
 
 
 app.listen(5000, () => console.log("Server is listening on door 5000"));
