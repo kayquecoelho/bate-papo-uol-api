@@ -97,19 +97,19 @@ app.get("/messages", async (req, res) => {
     mongoClient = await new MongoClient(process.env.Mongo_URI).connect();
     const db = mongoClient.db("bate-papo-uol");
     const messages = await db.collection("messages").find({}).toArray();
-
-    if (!limit) {
-      res.send(messages);
-      return;
-    } 
-
-    let filteredMessages = [...messages].reverse().slice(0, limit);
-    filteredMessages = filteredMessages.reverse();
-    const allowedMessages = filteredMessages.filter((m) => {
+    const allowedMessages = messages.filter((m) => {
       return user === m.to || user === m.from || m.to === "Todos";
     })
 
-    res.send(allowedMessages);
+    if (!limit) {
+      res.send(allowedMessages);
+      return;
+    } 
+
+    let filteredMessages = [...allowedMessages].reverse().slice(0, limit);
+    filteredMessages = filteredMessages.reverse();
+
+    res.send(filteredMessages);
   } catch (err) {
     res.sendStatus(500);
   }
